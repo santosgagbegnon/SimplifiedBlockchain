@@ -16,6 +16,17 @@ public class Transaction {
         this.receiver = receiver;
         this.amount = amount;
     }
+
+    public String getSender(){
+        return sender;
+    }
+
+    public String getReceiver(){
+        return receiver;
+    }
+    public int getAmount(){
+        return amount;
+    }
     /**
     @return a String representation of a transaction
      */
