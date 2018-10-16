@@ -10,7 +10,10 @@ public class Block {
     private String nonce = "00000"; // random string (for proof of work) private String previousHash; // previous hash (set to "" in first block) //(in first block, set to string of zeroes of size of complexity "00000") private String hash; // hash of the block (hash of string obtained
     private String previousHash; //the hash of the block that came before this current block
     private String hash; //hash of the current block
- 
+    /**
+    Creates an instance of Block given a transaction
+    @param transaction the transaction associated with the block being created
+     */
     public Block(Transaction transaction){
         if (transaction == null)
             throw new IllegalArgumentException("Transaction cannot be null.");
@@ -18,27 +21,27 @@ public class Block {
         this.timestamp = new Timestamp(System.currentTimeMillis());
         this.previousHash = "";
         this.index = 0;
-        this.hash = "999";
+        this.hash = "";
     }
     /**
     Constructs an instance of Block via a hash map representation of a block
-    @param blockHashMap a hash map representation of a block
+    @param blockEnumMap a hash map representation of a block
      */
-    public Block(EnumMap<BlockChainKeys,String> blockHashMap){
+    public Block(EnumMap<BlockChainKeys,String> blockEnumMap){
         //Checks if every key required to make a block is inside the 
         for(int i =0; i < BlockChain.KEYS.length;i++){
-            if(!(blockHashMap.containsKey(BlockChain.KEYS[i])))
+            if(!(blockEnumMap.containsKey(BlockChain.KEYS[i])))
                 throw new IllegalArgumentException("Could not parse given block hash map because values are missing");
          }
-
-        this.hash = blockHashMap.get(BlockChainKeys.HASH);
-        this.index = Integer.parseInt(blockHashMap.get(BlockChainKeys.INDEX));
-        this.nonce = blockHashMap.get(BlockChainKeys.NONCE);
-        this.timestamp = new Timestamp (Long.parseLong(blockHashMap.get(BlockChainKeys.TIMESTAMP)));
+        //Retrieving infro from the EnumMap
+        this.hash = blockEnumMap.get(BlockChainKeys.HASH);
+        this.index = Integer.parseInt(blockEnumMap.get(BlockChainKeys.INDEX));
+        this.nonce = blockEnumMap.get(BlockChainKeys.NONCE);
+        this.timestamp = new Timestamp (Long.parseLong(blockEnumMap.get(BlockChainKeys.TIMESTAMP)));
         this.previousHash ="";
-        String senderName = blockHashMap.get(BlockChainKeys.SENDER);
-        String receiverName = blockHashMap.get(BlockChainKeys.RECEIVER);
-        int transactionAmount =Integer.parseInt(blockHashMap.get(BlockChainKeys.AMOUNT));
+        String senderName = blockEnumMap.get(BlockChainKeys.SENDER);
+        String receiverName = blockEnumMap.get(BlockChainKeys.RECEIVER);
+        int transactionAmount =Integer.parseInt(blockEnumMap.get(BlockChainKeys.AMOUNT));
         this.transaction = new Transaction(senderName,receiverName,transactionAmount);
     }
 
@@ -69,36 +72,41 @@ public class Block {
     public String getNonce(){
         return nonce;
     }
-
-    public void updateHash(){
+    /**
+    This method sets the hash of the current block. This is done by creating a random string (max length = 9) from ascii characters 
+    once the proper nonce has been found and the hash begins with 5 zeros, the nonce and hash are updated.
+     @return the number of trials required to achieve a valid hash
+     */
+    public int updateHash(){
+        int numberOfTrials = 0;
         String currentHash = "";
         try{
             currentHash = Sha1.hash(toString());
         }
         catch(UnsupportedEncodingException e){
-            return;
+            return numberOfTrials;
         }
         if(currentHash.substring(0,5).equals("00000"))
-            return;
+            return numberOfTrials;
 
-        String generatedHash = "aaaaa";
+        String generatedHash = "aaaaa"; //random starting point
         while(!(generatedHash.substring(0,5).equals("00000"))){
+            numberOfTrials ++;
+            //Ensures the nonce length does not become too long
             if(nonce.length() > 8)
                 nonce = nonce.substring(4,8);
             int randomAsciiCode = (int)(Math.random() * 127 + 33);
             this.nonce = nonce + Character.toString((char) randomAsciiCode);
+            this.nonce = nonce.replace("\n","").replace("\t",""); 
             try {
                 generatedHash = Sha1.hash(toString());
             }
             catch(UnsupportedEncodingException e){
-                return;
+                return 0;
             }
         }
-        System.out.println(generatedHash);
-        System.out.println("-!" + nonce + "-!");
-
         this.hash = generatedHash;
-        
+        return numberOfTrials;
     }
 
     public void setPreviousHash(String newPreviousHash){

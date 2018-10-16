@@ -13,22 +13,32 @@ import java.nio.file.StandardOpenOption;
 import java.io.UnsupportedEncodingException;
 import java.io.FileWriter;
 
-
-
 public class BlockChain {
     private ArrayList<Block> blockchain; //ArrayList representation of blockChain
     public final static BlockChainKeys[] KEYS = new BlockChainKeys[] {BlockChainKeys.INDEX, BlockChainKeys.TIMESTAMP, BlockChainKeys.SENDER, BlockChainKeys.RECEIVER, BlockChainKeys.AMOUNT,BlockChainKeys.NONCE,BlockChainKeys.HASH};
-
+     /**
+    *Creates and instance of BlockChain
+     */
+    public BlockChain(){
+        this.blockchain = new ArrayList<>();
+    } 
     public static void main(String args[]){
-        System.out.println("MAIN");
         BlockChain blockChainFromFile = fromFile("blockchain_sgagb074.txt");
         if ((blockChainFromFile.validateBlockChain())){
             boolean addNewBlock = true;
             while(addNewBlock){
                 EnumMap<BlockChainKeys, String> userInputs = getTransactionFromUser(blockChainFromFile);
+                //Once valid information is returned, a transaction block is made, followed by a block and that block is added to the chain
                 Transaction newTransaction = new Transaction(userInputs.get(BlockChainKeys.SENDER), userInputs.get(BlockChainKeys.RECEIVER),Integer.parseInt(userInputs.get(BlockChainKeys.AMOUNT)));
                 Block newBlock = new Block(newTransaction);
+                //If there is a previousHash for the block, it is set and the hash of the new block is updated to
+                //contain the previous hash in the toString method.
+                if(blockChainFromFile.size() >= 2){
+                    newBlock.setPreviousHash(blockChainFromFile.getBlockAt(blockChainFromFile.size()-1).getHash());
+                    System.out.println("NumberOfTrials: "+newBlock.updateHash());
+                }
                 blockChainFromFile.add(newBlock);
+                
                 Scanner inputScanner = new Scanner(System.in);
                 System.out.print("Transaction complete. Would you like to perform another transaction: ");
                 String answer = inputScanner.nextLine();
@@ -38,13 +48,19 @@ public class BlockChain {
             }   
         }
         else{
-            System.out.println("not valid");
+            System.out.println("Oops! Your BlockChain file is invalid.");
 
         }
         blockChainFromFile.toFile("blockchain_sgagb074.txt");
         System.out.println("Block chain file saved.");
     }
-    public static EnumMap<BlockChainKeys,String> getTransactionFromUser(BlockChain blockchainFromFile){
+    /**
+    A method that prompts user for a sender name, receiver name and an amount to send
+    Once valid information is gathered, it is returned via an Enump Map containing all 3 values.
+    @param blockChainFromFile the blockChain to retrieve transactiosn from
+    @return the sender name, receiver name and amount to be sent.
+     */
+    public static EnumMap<BlockChainKeys,String> getTransactionFromUser(BlockChain blockChainFromFile){
         Scanner inputScanner = new Scanner(System.in);
         boolean validInput = false;
         String sender = "";
@@ -52,9 +68,9 @@ public class BlockChain {
         int amount = 0;
         while (!validInput){
             System.out.print("Enter the sender's username: ");
-            sender = inputScanner.nextLine();
+            sender = inputScanner.nextLine().trim();
             System.out.print("Enter the receiver's username: ");
-            receiver = inputScanner.nextLine();
+            receiver = inputScanner.nextLine().trim();
             System.out.print("Enter the amount you would like to send to " + receiver +": ");
             try{
                 amount = inputScanner.nextInt();
@@ -65,8 +81,8 @@ public class BlockChain {
             if((sender.equals(receiver))){
                 System.out.println("Nice try, you can't send Bitcoins to yourself!");
             }
-            else if(amount > blockchainFromFile.userBalance(sender)) {
-                System.out.println("Sorry, you don't have enough Bitcoins to send. You current balance is: " + blockchainFromFile.userBalance(sender));
+            else if(amount > blockChainFromFile.userBalance(sender)) {
+                System.out.println("Sorry, you don't have enough Bitcoins to send. You current balance is: " + blockChainFromFile.userBalance(sender));
             }
             else{
                 validInput = true;
@@ -80,12 +96,6 @@ public class BlockChain {
         userInputs.put(BlockChainKeys.AMOUNT,Integer.toString(amount));
         return userInputs;
     }
-    /**
-    *Creates and instance of BlockChain
-     */
-    public BlockChain(){
-        this.blockchain = new ArrayList<>();
-    } 
 
     /**
     This method converts a file into a BlockChain 
@@ -127,15 +137,16 @@ public class BlockChain {
     @param fileName The file to be updated
      */
     public void toFile(String fileName){
-        // FileWriter fileWriter = new FileWriter(fileName,false);
         Path filePath = Paths.get(fileName);
         ArrayList<String> arrayStringBlockChain = new ArrayList<>();
+       
         for(int i = 0; i < blockchain.size(); i++){
+            //Appends all block chain array lists to one list
             arrayStringBlockChain.addAll(fileRepresentationOfBlock(i));  
         } 
         try{
+            //Overwrites the blockChain file, updating it with the new transactions
             Files.write(filePath,arrayStringBlockChain,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING);
-            // fileWriter.write(fileBlock);
         }
         catch(IOException e){
             System.out.println("Aborting: Error occurred when trying to save blockChain");
@@ -152,23 +163,19 @@ public class BlockChain {
             Transaction blockTransaction = currentBlock.getTransaction();
             //Validates that the hash value was created from the toString method
             try{
-               if (!(Sha1.hash(currentBlock.toString()).equals(currentBlock.getHash()))){
-                System.out.println(currentBlock.getNonce());
-
-                 System.out.println(currentBlock.toString());
-                return false;
-
-               }
-              
+                if (!(Sha1.hash(currentBlock.toString()).equals(currentBlock.getHash()))){
+                    return false;
+                }
             }
             catch(UnsupportedEncodingException e){
                 System.out.println("error validating block chain...");
             }
+            if(!(currentBlock.getHash().substring(0,5).equals("00000")))
+                return false;
             //Checks if a user has sent bitcoins to themselves
             if (blockTransaction.getSender().equals(blockTransaction.getReceiver()))
                 return false;
             
-
             //Checks if the transaction is valid
             if(!(isValidTransaction(i)))
                 return false;
@@ -191,7 +198,8 @@ public class BlockChain {
 
     /**
     Checks if the transaction in the blockchain is valid by calculating the sender's balance 
-
+    @param location the location of the transaction to validate
+    @return true if the transaction is valid, false otherwise
      */
     private boolean isValidTransaction(int location){
         if(location - 1 == -1)
@@ -201,6 +209,8 @@ public class BlockChain {
         String sender = blockchain.get(location).getTransaction().getSender();
         int amount = blockchain.get(location).getTransaction().getAmount();
         int senderBalance = 0;
+        //Looks at the transactions prior to the transaction at location to determine if the transaction at location was valid
+        //(checks if the sender had enough money to send the money they did)
         for(int i = location-1; i >= 0; i--){
             Transaction transaction = blockchain.get(i).getTransaction();
             if(transaction.getReceiver().equals(sender)){
@@ -214,6 +224,7 @@ public class BlockChain {
     @param blockToAdd the block to be added to the block chain
      */
      public void add(Block blockToAdd){
+         //Sets the previous hash accordingly
         if(blockchain.size() == 0){
              blockToAdd.setPreviousHash("00000");
         }
@@ -221,11 +232,13 @@ public class BlockChain {
              blockToAdd.setPreviousHash(blockchain.get(blockchain.size()-1).getHash());
         }
         blockToAdd.setIndex(blockchain.size());
-        blockToAdd.updateHash();
-
         blockchain.add(blockToAdd);    
     }
-
+    /**
+    Calculate the user's account balance
+    @param username the username of the user to search
+    @return the account balance of the user
+     */
     public int userBalance(String username){
         int balance = 0;
         for(int i = 0; i < blockchain.size(); i++){
@@ -239,14 +252,16 @@ public class BlockChain {
         }
         return balance;
     }
-
+    /**
+    Creates a file formatted representation of a block. 
+    @param location the location of the block to format 
+    @return the formatted representation of the block
+     */
     public ArrayList<String> fileRepresentationOfBlock(int location){
         ArrayList<String> fileRepresentation = new ArrayList<>();
         if(location < 0 || location >= blockchain.size())
             throw new IndexOutOfBoundsException("location not in range");
         Block block = blockchain.get(location);
-                System.out.println(block.getTransaction().getReceiver());
-
         fileRepresentation.add(Integer.toString(block.getIndex()));
         fileRepresentation.add(Long.toString(block.getTimeStampInMillis()));
         fileRepresentation.add(block.getTransaction().getSender());
@@ -255,5 +270,21 @@ public class BlockChain {
         fileRepresentation.add(block.getNonce());
         fileRepresentation.add(block.getHash());
         return fileRepresentation;
+    }
+    /**
+    Gives the block at the given location
+    @param location the location to get the block from
+    @return the block at location
+     */
+    public Block getBlockAt(int location){
+        if(location < 0 || location >= blockchain.size())
+            throw new IndexOutOfBoundsException("location not in range");
+        return blockchain.get(location);
+    }
+    /**
+    @return size of the blockchain
+     */
+    public int size(){
+        return blockchain.size();
     }
 }
